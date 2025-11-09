@@ -1,0 +1,36 @@
+{
+  "job_id": "verify-ram-005",
+  "profile": "verify_readonly",
+  "target": {
+    "host": "raspberrypi"
+  },
+  "context": {
+    "component": "memory",
+    "expected_total_gib": 16,
+    "pct": 2
+  },
+  "prechecks": [],
+  "steps": [
+    {
+      "id": "s1_meminfo",
+      "action": "read_total_mem",
+      "args": {},
+      "timeout_s": 10,
+      "parser": "parse_meminfo",
+      "validator": "total_mem_within_pct"
+    },
+    {
+      "id": "s2_dmidecode",
+      "action": "read_dmi_memory",
+      "args": {},
+      "timeout_s": 10,
+      "parser": "parse_dmidecode",
+      "validator": null
+    }
+  ],
+  "postchecks": [],
+  "success_criteria": [
+    "All memory checks pass",
+    "DIMM configuration matches expected"
+  ]
+}

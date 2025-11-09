@@ -1,0 +1,88 @@
+version: 1
+profiles:
+  verify_readonly:
+    allow_sudo: ["/usr/sbin/dmidecode", "/usr/sbin/smartctl"]
+    max_timeout_s: 30
+    max_output_kib: 256
+  extended_verify:
+    allow_sudo: ["/usr/sbin/dmidecode", "/usr/sbin/smartctl", "/usr/bin/memtester"]
+    max_timeout_s: 60
+    max_output_kib: 512
+
+actions:
+  # Common / prechecks
+  ping_host:
+    cmd: "ping -c 2 {host}"
+    read_only: true
+  read_os_release:
+    cmd: "cat /etc/os-release"
+    read_only: true
+    parser: parse_os_release
+  grep_dmesg:
+    cmd: "dmesg --ctime | egrep -i '{pattern}' || true"
+    read_only: true
+    parser: parse_dmesg
+
+  # Memory
+  read_total_mem:
+    cmd: "cat /proc/meminfo"
+    read_only: true
+    parser: parse_meminfo
+  read_dmi_memory:
+    cmd: "sudo -n /usr/sbin/dmidecode -t memory"
+    read_only: true
+    requires_sudo: true
+    parser: parse_dmidecode
+
+  # NIC
+  read_nic_link:
+    cmd: "ethtool {iface}"
+    read_only: true
+    parser: parse_ethtool
+  read_nic_stats:
+    cmd: "ethtool -S {iface}"
+    read_only: true
+    parser: parse_ethtool_stats
+  read_sysfs_nic:
+    cmd: "cat /sys/class/net/{iface}/operstate && cat /sys/class/net/{iface}/speed 2>/dev/null || echo -1"
+    read_only: true
+    parser: parse_sysfs_nic
+
+  # Disk
+  read_disk_smart:
+    cmd: "sudo -n /usr/sbin/smartctl -H {device}"
+    read_only: true
+    requires_sudo: true
+    parser: parse_smart
+  read_mounts:
+    cmd: "cat /proc/mounts"
+    read_only: true
+    parser: parse_mounts
+
+  # PSU / Fans / Thermal (IPMI SDR text)
+  read_ipmi_psu:
+    cmd: "ipmitool sdr list | egrep -i 'psu|power'"
+    read_only: true
+    parser: parse_ipmi_psu
+  read_ipmi_fans:
+    cmd: "ipmitool sdr list | egrep -i 'fan'"
+    read_only: true
+    parser: parse_ipmi_fans
+  read_ipmi_thermal:
+    cmd: "ipmitool sdr list | egrep -i 'temp'"
+    read_only: true
+    parser: parse_ipmi_thermal
+
+validators:
+  no_critical_logs: {}
+  total_mem_within_pct:
+    args: ["expected_gib", "pct"]
+  all_expected_dimms: {}
+  nic_link_up: {}
+  nic_speed_at_least:
+    args: ["gbps"]
+  nic_no_errors: {}
+  disk_smart_pass: {}
+  psu_ok: {}
+  fans_within_range: {}
+  thermal_within_limits: {}
