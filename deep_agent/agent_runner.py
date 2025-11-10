@@ -344,9 +344,8 @@ Fill the todo list with the verification tasks needed so your runner can stay on
 
         if not isinstance(data, tuple) or len(data) != 2:
             return
-
         message, _metadata = data
-
+        temp = None
         if isinstance(message, HumanMessage):
             return
 
@@ -374,15 +373,18 @@ Fill the todo list with the verification tasks needed so your runner can stay on
                     message=self.content,
                     meta={"type": "agent_message", "namespace": namespace},
                 )
+
                 db.session.add(stream)
                 db.session.commit()
                 print(f"\n[AGENT MESSAGE] {self.content}")
+                temp = self.content
             except Exception as e:
                 db.session.rollback()
                 flask_app.logger.error(f"Failed to write agent message to stream: {e}")
             finally:
                 self.content = ""
-
+        return temp
+        
     def _execute_verification_plan_tool(
         self, plan_dsl: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -537,49 +539,47 @@ Fill the todo list with the verification tasks needed so your runner can stay on
         Tool for the agent to update the test record with final results.
         """
         from db_models import Test, Result
+        with flask_app.app_context():
+            test_id = self.current_test_id
+            test = Test.query.get(test_id)
 
-        test_id = self.current_test_id
-        test = Test.query.get(test_id)
+            if not test:
+                return {"error": f"Test {test_id} not found"}
 
-        if not test:
-            return {"error": f"Test {test_id} not found"}
+            # Update test record
+            test.status = status
+            test.summary = summary
+            test.ended_at = datetime.now(timezone.utc)
 
-        # Update test record
-        test.status = status
-        test.summary = summary
-        test.ended_at = datetime.now(timezone.utc)
+            if target:
+                test.target = target
+            if prechecks:
+                test.prechecks = prechecks
+            if steps:
+                test.steps = steps
+            if postchecks:
+                test.postchecks = postchecks
+            if evidence:
+                test.evidence = evidence
 
-        if target:
-            test.target = target
-        if prechecks:
-            test.prechecks = prechecks
-        if steps:
-            test.steps = steps
-        if postchecks:
-            test.postchecks = postchecks
-        if evidence:
-            test.evidence = evidence
+            # Create Result record
+            result_record = Result(
+                test_id=str(test_id),
+                status=status,
+                started_at=test.started_at,
+                ended_at=test.ended_at,
+                summary=summary,
+                evidence=evidence or "{}",
+            )
+            self.db.add(result_record)
+            self.db.commit()
 
-        self.db.commit()
-
-        # Create Result record
-        result_record = Result(
-            test_id=str(test_id),
-            status=status,
-            started_at=test.started_at,
-            ended_at=test.ended_at,
-            summary=summary,
-            evidence=evidence or "{}",
-        )
-        self.db.add(result_record)
-        self.db.commit()
-
-        return {
-            "success": True,
-            "test_id": test_id,
-            "status": status,
-            "message": "Test results updated successfully",
-        }
+            return {
+                "success": True,
+                "test_id": test_id,
+                "status": status,
+                "message": "Test results updated successfully",
+            }
 
 
 def create_test_from_prompt(

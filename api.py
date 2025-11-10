@@ -135,18 +135,21 @@ def build_test():
     """
     req = request.get_json()
 
-    if not req:
-        return jsonify({"error": "Request body required"}), 400
+    # if not req:
+    # return jsonify({"error": "Request body required"}), 400
 
-    prompt = req.get("prompt")
-    target_host = req.get("target_host")
+    prompt = req.get("prompt") or "Run test abc - verify memory is at least 16GB"
 
-    if not prompt:
-        return jsonify({"error": "prompt is required"}), 400
-    if not target_host:
-        return jsonify({"error": "target_host is required"}), 400
+    # if not prompt:
+    #     return jsonify({"error": "prompt is required"}), 400
+    # if not target_host:
+    #     return jsonify({"error": "target_host is required"}), 400
 
-    server_id = req.get("server_id")
+    server_id = req.get("server_id", "R200123A32")
+    print("server id:", server_id)
+
+    target_host = "raspberrypi"
+    # server_id = "R200123A15"
 
     try:
         # Import deep agent integration
@@ -167,7 +170,7 @@ def build_test():
                 server_id=server_id,
             )
 
-        status_code = 201 if result["status"] == "success" else 500
+        status_code = 201 if result["status"] == "success" else 200
         return jsonify(result), status_code
 
     except Exception as e:
